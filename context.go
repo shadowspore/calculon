@@ -32,18 +32,6 @@ func (ctx *Context) SetFunc(name string, fn Function) {
 	ctx.funcs[name] = fn
 }
 
-func (ctx *Context) ForEachVars(iter func(name string, value float64)) {
-	for name, val := range ctx.vars {
-		iter(name, val)
-	}
-}
-
-func (ctx *Context) ForEachFuncs(iter func(name string, fn Function)) {
-	for name, fn := range ctx.funcs {
-		iter(name, fn)
-	}
-}
-
 func (ctx *Context) LookupVar(name string) (float64, bool) {
 	val, found := ctx.vars[name]
 	return val, found

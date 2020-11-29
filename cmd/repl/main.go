@@ -9,6 +9,37 @@ import (
 	"github.com/zweihander/calculon"
 )
 
+// for functions, to keep the global scope access
+type ForkCtx struct {
+	parent calculon.EvalContext
+	*calculon.Context
+}
+
+func (fc *ForkCtx) LookupVar(name string) (float64, bool) {
+	val, found := fc.Context.LookupVar(name)
+	if found {
+		return val, true
+	}
+
+	return fc.parent.LookupVar(name)
+}
+
+func (fc *ForkCtx) LookupFunc(name string) (calculon.Function, bool) {
+	fn, found := fc.Context.LookupFunc(name)
+	if found {
+		return fn, true
+	}
+
+	return fc.parent.LookupFunc(name)
+}
+
+func NewForkCtx(parent calculon.EvalContext) *ForkCtx {
+	return &ForkCtx{
+		parent:  parent,
+		Context: calculon.NewContext(),
+	}
+}
+
 func main() {
 	r := bufio.NewReader(os.Stdin)
 	ctx := calculon.MathContext()
@@ -80,15 +111,7 @@ func define(input string, ctx *calculon.Context) error {
 			pnames = append(pnames, vararg.Name)
 		}
 
-		fnCtx := calculon.NewContext()
-		ctx.ForEachVars(func(name string, value float64) {
-			fnCtx.SetVar(name, value)
-		})
-
-		ctx.ForEachFuncs(func(name string, fn calculon.Function) {
-			fnCtx.SetFunc(name, fn)
-		})
-
+		fnCtx := NewForkCtx(ctx)
 		ctx.SetFunc(w.Name, func(args []float64) (float64, error) {
 			if len(args) != len(pnames) {
 				return 0, fmt.Errorf("%s(): bad params count (want %d, got %d)", w.Name, len(pnames), len(args))
