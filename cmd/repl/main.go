@@ -59,7 +59,19 @@ func main() {
 
 func exec(input string, ctx *calculon.Context) error {
 	if strings.Contains(input, "=") {
-		return define(input, ctx)
+		if err := define(input, ctx); err != nil {
+			return fmt.Errorf("assign: %w", err)
+		}
+
+		return nil
+	}
+
+	switch strings.ToLower(input) {
+	case ":q":
+		os.Exit(0)
+	case ":clear":
+		fmt.Print("\033[H\033[2J")
+		return nil
 	}
 
 	expr, err := calculon.Parse(input)
@@ -79,30 +91,30 @@ func exec(input string, ctx *calculon.Context) error {
 func define(input string, ctx *calculon.Context) error {
 	vars := strings.Split(input, "=")
 	if len(vars) != 2 {
-		return fmt.Errorf("bad def")
+		return fmt.Errorf("multiple assignment")
 	}
 
-	what, err := calculon.Parse(strings.TrimSpace(vars[0]))
+	left, err := calculon.Parse(strings.TrimSpace(vars[0]))
 	if err != nil {
 		return err
 	}
 
-	def, err := calculon.Parse(strings.TrimSpace(vars[1]))
+	right, err := calculon.Parse(strings.TrimSpace(vars[1]))
 	if err != nil {
 		return err
 	}
 
-	switch w := what.(type) {
+	switch left := left.(type) {
 	case calculon.Variable:
-		num, ok := def.(calculon.Number)
+		num, ok := right.(calculon.Number)
 		if !ok {
-			return fmt.Errorf("invalid value type: %T", def)
+			return fmt.Errorf("invalid right operand type: %T", right)
 		}
 
-		ctx.SetVar(w.Name, num.Value)
+		ctx.SetVar(left.Name, num.Value)
 	case calculon.FunctionCall:
 		var pnames []string
-		for _, arg := range w.Args {
+		for _, arg := range left.Args {
 			vararg, ok := arg.(calculon.Variable)
 			if !ok {
 				return fmt.Errorf("unsupported function argument: %T", arg)
@@ -112,19 +124,19 @@ func define(input string, ctx *calculon.Context) error {
 		}
 
 		fnCtx := NewForkCtx(ctx)
-		ctx.SetFunc(w.Name, func(args []float64) (float64, error) {
+		ctx.SetFunc(left.Name, func(args []float64) (float64, error) {
 			if len(args) != len(pnames) {
-				return 0, fmt.Errorf("%s(): bad params count (want %d, got %d)", w.Name, len(pnames), len(args))
+				return 0, fmt.Errorf("%s(): bad params count (want %d, got %d)", left.Name, len(pnames), len(args))
 			}
 
 			for i, paramName := range pnames {
 				fnCtx.SetVar(paramName, args[i])
 			}
 
-			return def.Eval(fnCtx)
+			return right.Eval(fnCtx)
 		})
 	default:
-		return fmt.Errorf("bad def type: %T", w)
+		return fmt.Errorf("invalid left operand type: %T", left)
 	}
 
 	return nil
