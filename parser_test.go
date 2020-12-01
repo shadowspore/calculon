@@ -1,6 +1,7 @@
 package calculon
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,11 +12,13 @@ func TestParser(t *testing.T) {
 		name     string
 		input    string
 		expected Expression
+		err      error
 	}{
 		{
 			name:  "simple",
 			input: "2 + 2",
-			expected: Addition{
+			expected: BinaryOp{
+				Op:    "+",
 				Left:  Number{Value: 2},
 				Right: Number{Value: 2},
 			},
@@ -23,36 +26,42 @@ func TestParser(t *testing.T) {
 		{
 			name:  "complex",
 			input: "2 * (3 + 4) / 1024 - 512 * (-9 + 100) * 1533223 - 55 / 2",
-			expected: Subtraction{
-				Left: Subtraction{
-					Left: Division{
-						Left: Multiplication{
+			expected: BinaryOp{
+				Op: "-",
+				Left: BinaryOp{
+					Op: "-",
+					Left: BinaryOp{
+						Op: "/",
+						Left: BinaryOp{
+							Op:   "*",
 							Left: Number{Value: 2},
-							Right: Parentheses{
-								Expr: Addition{
-									Left:  Number{Value: 3},
-									Right: Number{Value: 4},
-								},
+							Right: BinaryOp{
+								Op:    "+",
+								Left:  Number{Value: 3},
+								Right: Number{Value: 4},
 							},
 						},
 						Right: Number{Value: 1024},
 					},
-					Right: Multiplication{
-						Left: Multiplication{
+					Right: BinaryOp{
+						Op: "*",
+						Left: BinaryOp{
+							Op:   "*",
 							Left: Number{Value: 512},
-							Right: Parentheses{
-								Expr: Addition{
-									Left: Negation{
-										Expr: Number{Value: 9},
-									},
-									Right: Number{Value: 100},
+							Right: BinaryOp{
+								Op: "+",
+								Left: UnaryOp{
+									Op:   "-",
+									Expr: Number{Value: 9},
 								},
+								Right: Number{Value: 100},
 							},
 						},
 						Right: Number{Value: 1533223},
 					},
 				},
-				Right: Division{
+				Right: BinaryOp{
+					Op:    "/",
 					Left:  Number{Value: 55},
 					Right: Number{Value: 2},
 				},
@@ -61,33 +70,37 @@ func TestParser(t *testing.T) {
 		{
 			name:  "simple-with-vars",
 			input: "x + (y / 3)",
-			expected: Addition{
+			expected: BinaryOp{
+				Op:   "+",
 				Left: Variable{Name: "x"},
-				Right: Parentheses{
-					Expr: Division{
-						Left:  Variable{Name: "y"},
-						Right: Number{Value: 3},
-					},
+				Right: BinaryOp{
+					Op:    "/",
+					Left:  Variable{Name: "y"},
+					Right: Number{Value: 3},
 				},
 			},
 		},
 		{
 			name:  "simple-with-functions",
 			input: "foo() + bar(-2 + y)^3 - baz(z, bax(x))",
-			expected: Subtraction{
-				Left: Addition{
+			expected: BinaryOp{
+				Op: "-",
+				Left: BinaryOp{
+					Op:   "+",
 					Left: FunctionCall{Name: "foo"},
-					Right: Exponentiation{
-						Num: FunctionCall{
+					Right: BinaryOp{
+						Op: "^",
+						Left: FunctionCall{
 							Name: "bar",
 							Args: []Expression{
-								Addition{
-									Left:  Negation{Expr: Number{Value: 2}},
+								BinaryOp{
+									Op:    "+",
+									Left:  UnaryOp{Op: "-", Expr: Number{Value: 2}},
 									Right: Variable{Name: "y"},
 								},
 							},
 						},
-						Power: Number{Value: 3},
+						Right: Number{Value: 3},
 					},
 				},
 				Right: FunctionCall{
@@ -105,20 +118,24 @@ func TestParser(t *testing.T) {
 		{
 			name:  "multi-exponent",
 			input: "2^3^4",
-			expected: Exponentiation{
-				Num: Number{Value: 2},
-				Power: Exponentiation{
-					Num:   Number{Value: 3},
-					Power: Number{Value: 4},
+			expected: BinaryOp{
+				Op:   "^",
+				Left: Number{Value: 2},
+				Right: BinaryOp{
+					Op:    "^",
+					Left:  Number{Value: 3},
+					Right: Number{Value: 4},
 				},
 			},
 		},
 		{
 			name:  "simple-modulo",
 			input: "2 + 3 % 4",
-			expected: Addition{
+			expected: BinaryOp{
+				Op:   "+",
 				Left: Number{Value: 2},
-				Right: Modulo{
+				Right: BinaryOp{
+					Op:    "%",
 					Left:  Number{Value: 3},
 					Right: Number{Value: 4},
 				},
@@ -127,13 +144,14 @@ func TestParser(t *testing.T) {
 		{
 			name:  "wrong1",
 			input: "f)(",
+			err:   fmt.Errorf("unexpected token: Kind:)"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			expr, err := Parse(test.input)
-			assert.NoError(t, err)
+			assert.Equal(t, test.err, err)
 
 			assert.Equal(t, test.expected, expr)
 		})

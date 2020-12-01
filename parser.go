@@ -17,6 +17,19 @@ func newRecursiveDescent(input string) *recursiveDescent {
 	}
 }
 
+func (p *recursiveDescent) parse() (Expression, error) {
+	expr, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+
+	if next := p.lexer.Next(); next.Kind != lexer.EOF {
+		return nil, fmt.Errorf("unexpected token: %s", next)
+	}
+
+	return expr, nil
+}
+
 func (p *recursiveDescent) parseExpr() (Expression, error) {
 	expr, err := p.parseTerm()
 	if err != nil {
@@ -24,72 +37,52 @@ func (p *recursiveDescent) parseExpr() (Expression, error) {
 	}
 
 	for {
-		if next := p.lexer.Ahead().Kind; next == lexer.CloseParen || next == lexer.Comma {
-			return expr, nil
-		}
-
-		tok := p.lexer.Next()
-		switch tok.Kind {
-		case lexer.Plus:
-			plusExpr, err := p.parseTerm()
+		next := p.lexer.Ahead().Kind
+		if next == lexer.Plus || next == lexer.Minus {
+			_ = p.lexer.Next()
+			right, err := p.parseTerm()
 			if err != nil {
 				return nil, err
 			}
 
-			expr = Addition{Left: expr, Right: plusExpr}
-		case lexer.Minus:
-			minusExpr, err := p.parseTerm()
-			if err != nil {
-				return nil, err
+			expr = BinaryOp{
+				Op:    next.String(),
+				Left:  expr,
+				Right: right,
 			}
 
-			expr = Subtraction{Left: expr, Right: minusExpr}
-		case lexer.EOF:
-			return expr, nil
-		default:
-			return nil, fmt.Errorf("unexpected token: %s, pos: %d", tok, p.lexer.Pos())
+			continue
 		}
+
+		return expr, nil
 	}
 }
 
 func (p *recursiveDescent) parseTerm() (Expression, error) {
-	expr, err := p.parseFactor()
+	left, err := p.parseFactor()
 	if err != nil {
 		return nil, err
 	}
 
 	for {
-		if p.lexer.Eat(lexer.Asterisk) {
-			mulExpr, err := p.parseFactor()
+		next := p.lexer.Ahead().Kind
+		if next == lexer.Asterisk || next == lexer.Slash || next == lexer.Percent {
+			_ = p.lexer.Next()
+			right, err := p.parseFactor()
 			if err != nil {
 				return nil, err
 			}
 
-			expr = Multiplication{Left: expr, Right: mulExpr}
-			continue
-		}
-
-		if p.lexer.Eat(lexer.Slash) {
-			divExpr, err := p.parseFactor()
-			if err != nil {
-				return nil, err
+			left = BinaryOp{
+				Op:    next.String(),
+				Left:  left,
+				Right: right,
 			}
 
-			expr = Division{Left: expr, Right: divExpr}
 			continue
 		}
 
-		if p.lexer.Eat(lexer.Percent) {
-			prcExpr, err := p.parseFactor()
-			if err != nil {
-				return nil, err
-			}
-
-			expr = Modulo{Left: expr, Right: prcExpr}
-			continue
-		}
-
-		return expr, nil
+		return left, nil
 	}
 }
 
@@ -104,7 +97,7 @@ func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
 			return nil, err
 		}
 
-		return Negation{Expr: expr}, nil
+		return UnaryOp{Op: "-", Expr: expr}, nil
 	case lexer.OpenParen:
 		expr, err = p.parseExpr()
 		if err != nil {
@@ -114,8 +107,6 @@ func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
 		if next := p.lexer.Next(); next.Kind != lexer.CloseParen {
 			return nil, fmt.Errorf("expected: ')'")
 		}
-
-		expr = Parentheses{Expr: expr}
 	case lexer.Number:
 		num, err := strconv.ParseFloat(tok.Value, 64)
 		if err != nil {
@@ -125,46 +116,21 @@ func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
 		expr = Number{Value: num}
 	case lexer.Ident:
 		// it's a function?
-		if !p.lexer.Eat(lexer.OpenParen) { // no
-			expr = Variable{Name: tok.Value}
-			break
-		}
-
-		// it's a function without args?
-		if p.lexer.Eat(lexer.CloseParen) { // yes
-			expr = FunctionCall{
-				Name: tok.Value,
-				Args: nil,
-			}
-
-			break
-		}
-
-		var args []Expression
-
-		for {
-			arg, err := p.parseExpr()
+		if p.lexer.Eat(lexer.OpenParen) {
+			args, err := p.parseArgs()
 			if err != nil {
 				return nil, err
 			}
 
-			args = append(args, arg)
-			if p.lexer.Eat(lexer.Comma) {
-				continue
+			expr = FunctionCall{
+				Name: tok.Value,
+				Args: args,
 			}
 
 			break
 		}
 
-		if p.lexer.Next().Kind != lexer.CloseParen {
-			return nil, fmt.Errorf("expected ')'")
-		}
-
-		expr = FunctionCall{
-			Name: tok.Value,
-			Args: args,
-		}
-
+		expr = Variable{Name: tok.Value}
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", tok)
 	}
@@ -175,15 +141,36 @@ func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
 			return nil, err
 		}
 
-		return Exponentiation{
-			Num:   expr,
-			Power: power,
+		return BinaryOp{
+			Op:    "^",
+			Left:  expr,
+			Right: power,
 		}, nil
 	}
 
 	return
 }
 
+func (p *recursiveDescent) parseArgs() ([]Expression, error) {
+	var args []Expression
+	for !p.lexer.Eat(lexer.CloseParen) {
+		if len(args) > 0 {
+			if !p.lexer.Eat(lexer.Comma) {
+				return nil, fmt.Errorf("expected ','")
+			}
+		}
+
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		args = append(args, expr)
+	}
+
+	return args, nil
+}
+
 func Parse(input string) (Expression, error) {
-	return newRecursiveDescent(input).parseExpr()
+	return newRecursiveDescent(input).parse()
 }

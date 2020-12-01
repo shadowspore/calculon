@@ -24,157 +24,75 @@ func (c Number) String() string {
 	return strconv.FormatFloat(c.Value, 'g', 10, 64)
 }
 
-type Addition struct {
-	Left, Right Expression
+type BinaryOp struct {
+	Op    string
+	Left  Expression
+	Right Expression
 }
 
-func (add Addition) Eval(ctx EvalContext) (float64, error) {
-	l, err := add.Left.Eval(ctx)
+func (binary BinaryOp) Eval(ctx EvalContext) (float64, error) {
+	l, err := binary.Left.Eval(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	r, err := add.Right.Eval(ctx)
+	r, err := binary.Right.Eval(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	return l + r, nil
+	switch binary.Op {
+	case "+":
+		return l + r, nil
+	case "-":
+		return l - r, nil
+	case "*":
+		return l * r, nil
+	case "/":
+		if r == 0 {
+			return 0, fmt.Errorf("divide by zero")
+		}
+
+		return l / r, nil
+	case "%":
+		return math.Mod(l, r), nil
+	case "^":
+		return math.Pow(l, r), nil
+	default:
+		return 0, fmt.Errorf("unexpected binary op: %s", binary.Op)
+	}
 }
 
-func (add Addition) String() string {
-	return add.Left.String() + " + " + add.Right.String()
+func (binary BinaryOp) String() string {
+	return binary.Left.String() + " " + binary.Op + " " + binary.Right.String()
 }
 
-type Subtraction struct {
-	Left, Right Expression
+type UnaryOp struct {
+	Op        string
+	Expr      Expression
+	IsPostfix bool
 }
 
-func (sub Subtraction) Eval(ctx EvalContext) (float64, error) {
-	l, err := sub.Left.Eval(ctx)
+func (unary UnaryOp) Eval(ctx EvalContext) (float64, error) {
+	val, err := unary.Expr.Eval(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	r, err := sub.Right.Eval(ctx)
-	if err != nil {
-		return 0, err
+	switch unary.Op {
+	case "-":
+		return -val, nil
+	default:
+		return 0, fmt.Errorf("unexpected unary op: %s", unary.Op)
+	}
+}
+
+func (unary UnaryOp) String() string {
+	if unary.IsPostfix {
+		return unary.Expr.String() + unary.Op
 	}
 
-	return l - r, nil
-}
-
-func (sub Subtraction) String() string {
-	return sub.Left.String() + " - " + sub.Right.String()
-}
-
-type Multiplication struct {
-	Left, Right Expression
-}
-
-func (mul Multiplication) Eval(ctx EvalContext) (float64, error) {
-	l, err := mul.Left.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	r, err := mul.Right.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return l * r, nil
-}
-
-func (mul Multiplication) String() string {
-	return mul.Left.String() + " * " + mul.Right.String()
-}
-
-type Division struct {
-	Left, Right Expression
-}
-
-func (div Division) Eval(ctx EvalContext) (float64, error) {
-	l, err := div.Left.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	r, err := div.Right.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	if r == 0 {
-		return 0, fmt.Errorf("divide by zero")
-	}
-
-	return l / r, nil
-}
-
-func (div Division) String() string {
-	return div.Left.String() + " / " + div.Right.String()
-}
-
-type Modulo struct {
-	Left, Right Expression
-}
-
-func (mod Modulo) Eval(ctx EvalContext) (float64, error) {
-	l, err := mod.Left.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	r, err := mod.Right.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return math.Mod(l, r), nil
-}
-
-func (mod Modulo) String() string {
-	return mod.Left.String() + " % " + mod.Right.String()
-}
-
-type Negation struct {
-	Expr Expression
-}
-
-func (neg Negation) Eval(ctx EvalContext) (float64, error) {
-	num, err := neg.Expr.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return -num, err
-}
-
-func (neg Negation) String() string {
-	return "-" + neg.Expr.String()
-}
-
-type Exponentiation struct {
-	Num, Power Expression
-}
-
-func (exp Exponentiation) Eval(ctx EvalContext) (float64, error) {
-	n, err := exp.Num.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	pow, err := exp.Power.Eval(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return math.Pow(n, pow), nil
-}
-
-func (exp Exponentiation) String() string {
-	return exp.Num.String() + "^" + exp.Power.String()
+	return unary.Op + unary.Expr.String()
 }
 
 type Variable struct {
@@ -226,41 +144,3 @@ func (call FunctionCall) String() string {
 
 	return call.Name + "(" + strings.Join(args, ", ") + ")"
 }
-
-type Parentheses struct {
-	Expr Expression
-}
-
-func (par Parentheses) Eval(ctx EvalContext) (float64, error) {
-	return par.Expr.Eval(ctx)
-}
-
-func (par Parentheses) String() string {
-	return "(" + par.Expr.String() + ")"
-}
-
-// type ConditionalOp struct {
-// 	Op          string
-// 	Left, Right Expression
-// }
-
-// type UnaryInfixOp struct {
-// 	Op   string
-// 	Expr Expression
-// }
-
-// type UnaryPostfixOp struct {
-// 	Op   string
-// 	Expr Expression
-// }
-
-// type BinaryOp struct {
-// 	Op          string
-// 	Left, Right Expression
-// }
-
-// type TernaryOp struct {
-// 	Op              string
-// 	Cond            ConditionalOp
-// 	OnTrue, OnFalse Expression
-// }
