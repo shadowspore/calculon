@@ -86,53 +86,23 @@ func (p *recursiveDescent) parseTerm() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
-	tok := p.lexer.Next()
-	switch tok.Kind {
-	case lexer.Plus:
+func (p *recursiveDescent) parseFactor() (Expression, error) {
+	if p.lexer.Eat(lexer.Plus) {
 		return p.parseFactor()
-	case lexer.Minus:
+	}
+
+	if p.lexer.Eat(lexer.Minus) {
 		expr, err := p.parseFactor()
 		if err != nil {
 			return nil, err
 		}
 
 		return UnaryOp{Op: "-", Expr: expr}, nil
-	case lexer.OpenParen:
-		expr, err = p.parseExpr()
-		if err != nil {
-			return nil, err
-		}
+	}
 
-		if next := p.lexer.Next(); next.Kind != lexer.CloseParen {
-			return nil, fmt.Errorf("expected: ')'")
-		}
-	case lexer.Number:
-		num, err := strconv.ParseFloat(tok.Value, 64)
-		if err != nil {
-			return nil, err
-		}
-
-		expr = Number{Value: num}
-	case lexer.Ident:
-		// it's a function?
-		if p.lexer.Eat(lexer.OpenParen) {
-			args, err := p.parseArgs()
-			if err != nil {
-				return nil, err
-			}
-
-			expr = FunctionCall{
-				Name: tok.Value,
-				Args: args,
-			}
-
-			break
-		}
-
-		expr = Variable{Name: tok.Value}
-	default:
-		return nil, fmt.Errorf("unexpected token: %s", tok)
+	expr, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
 	}
 
 	if p.lexer.Eat(lexer.Caret) {
@@ -148,7 +118,48 @@ func (p *recursiveDescent) parseFactor() (expr Expression, err error) {
 		}, nil
 	}
 
-	return
+	return expr, nil
+}
+
+func (p *recursiveDescent) parsePrimary() (Expression, error) {
+	tok := p.lexer.Next()
+	switch tok.Kind {
+	case lexer.OpenParen:
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.lexer.Eat(lexer.CloseParen) {
+			return nil, fmt.Errorf("expected: ')'")
+		}
+
+		return expr, nil
+	case lexer.Number:
+		num, err := strconv.ParseFloat(tok.Value, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		return Number{Value: num}, nil
+	case lexer.Ident:
+		// it's a function?
+		if p.lexer.Eat(lexer.OpenParen) {
+			args, err := p.parseArgs()
+			if err != nil {
+				return nil, err
+			}
+
+			return FunctionCall{
+				Name: tok.Value,
+				Args: args,
+			}, nil
+		}
+
+		return Variable{Name: tok.Value}, nil
+	default:
+		return nil, fmt.Errorf("unexpected token: %s", tok)
+	}
 }
 
 func (p *recursiveDescent) parseArgs() ([]Expression, error) {
