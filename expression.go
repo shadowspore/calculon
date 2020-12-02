@@ -64,30 +64,11 @@ func (binary BinaryOp) Eval(ctx EvalContext) (float64, error) {
 }
 
 func (binary BinaryOp) String() string {
-	currOp := precedense[binary.Op]
-
-	left := binary.Left.String()
-	if lbin, ok := binary.Left.(BinaryOp); ok {
-		leftOp := precedense[lbin.Op]
-		if currOp.prec > leftOp.prec || (currOp.prec == leftOp.prec && currOp.rightAssoc) {
-			left = "(" + left + ")"
-		}
-	}
-
-	right := binary.Right.String()
-	if rbin, ok := binary.Right.(BinaryOp); ok {
-		rightOp := precedense[rbin.Op]
-		if currOp.prec > rightOp.prec ||
-			(currOp.prec == rightOp.prec && !rightOp.rightAssoc && !currOp.rightAssoc) {
-			right = "(" + right + ")"
-		}
-	}
-
 	if binary.Op == "^" {
-		return left + binary.Op + right
+		return binary.Left.String() + binary.Op + binary.Right.String()
 	}
 
-	return left + " " + binary.Op + " " + right
+	return binary.Left.String() + " " + binary.Op + " " + binary.Right.String()
 }
 
 type UnaryOp struct {
@@ -111,16 +92,23 @@ func (unary UnaryOp) Eval(ctx EvalContext) (float64, error) {
 }
 
 func (unary UnaryOp) String() string {
-	expString := unary.Expr.String()
-	if _, ok := unary.Expr.(BinaryOp); ok {
-		expString = "(" + expString + ")"
-	}
-
 	if unary.IsPostfix {
-		return expString + unary.Op
+		return unary.Expr.String() + unary.Op
 	}
 
-	return unary.Op + expString
+	return unary.Op + unary.Expr.String()
+}
+
+type Parentheses struct {
+	Expr Expression
+}
+
+func (paren Parentheses) Eval(ctx EvalContext) (float64, error) {
+	return paren.Expr.Eval(ctx)
+}
+
+func (paren Parentheses) String() string {
+	return "(" + paren.Expr.String() + ")"
 }
 
 type Variable struct {

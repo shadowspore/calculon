@@ -35,10 +35,12 @@ func TestParser(t *testing.T) {
 						Left: BinaryOp{
 							Op:   "*",
 							Left: Number{Value: 2},
-							Right: BinaryOp{
-								Op:    "+",
-								Left:  Number{Value: 3},
-								Right: Number{Value: 4},
+							Right: Parentheses{
+								Expr: BinaryOp{
+									Op:    "+",
+									Left:  Number{Value: 3},
+									Right: Number{Value: 4},
+								},
 							},
 						},
 						Right: Number{Value: 1024},
@@ -48,13 +50,15 @@ func TestParser(t *testing.T) {
 						Left: BinaryOp{
 							Op:   "*",
 							Left: Number{Value: 512},
-							Right: BinaryOp{
-								Op: "+",
-								Left: UnaryOp{
-									Op:   "-",
-									Expr: Number{Value: 9},
+							Right: Parentheses{
+								Expr: BinaryOp{
+									Op: "+",
+									Left: UnaryOp{
+										Op:   "-",
+										Expr: Number{Value: 9},
+									},
+									Right: Number{Value: 100},
 								},
-								Right: Number{Value: 100},
 							},
 						},
 						Right: Number{Value: 1533223},
@@ -73,10 +77,12 @@ func TestParser(t *testing.T) {
 			expected: BinaryOp{
 				Op:   "+",
 				Left: Variable{Name: "x"},
-				Right: BinaryOp{
-					Op:    "/",
-					Left:  Variable{Name: "y"},
-					Right: Number{Value: 3},
+				Right: Parentheses{
+					Expr: BinaryOp{
+						Op:    "/",
+						Left:  Variable{Name: "y"},
+						Right: Number{Value: 3},
+					},
 				},
 			},
 		},

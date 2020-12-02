@@ -134,7 +134,7 @@ func (p *recursiveDescent) parsePrimary() (Expression, error) {
 			return nil, fmt.Errorf("expected: ')'")
 		}
 
-		return expr, nil
+		return Parentheses{Expr: expr}, nil
 	case lexer.Number:
 		num, err := strconv.ParseFloat(tok.Value, 64)
 		if err != nil {
