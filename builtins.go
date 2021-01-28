@@ -5,8 +5,6 @@ import (
 	"math"
 )
 
-type Function = func(args []float64) (float64, error)
-
 var (
 	builtinVars = map[string]float64{
 		"Pi": math.Pi,

@@ -7,42 +7,49 @@ import (
 	"strings"
 
 	"github.com/zweihander/calculon"
+	"github.com/zweihander/calculon/ast"
+	"github.com/zweihander/calculon/compiler"
+	"github.com/zweihander/calculon/parser"
+	"github.com/zweihander/calculon/vm"
 )
 
-// for functions, to keep the global scope access
-type ForkCtx struct {
-	parent calculon.EvalContext
-	*calculon.Context
+type ScopedEnv struct {
+	parent *calculon.Env
+	*calculon.Env
 }
 
-func (fc *ForkCtx) LookupVar(name string) (float64, bool) {
-	val, found := fc.Context.LookupVar(name)
+func (e *ScopedEnv) LookupVar(name string) (float64, bool) {
+	val, found := e.Env.LookupVar(name)
 	if found {
 		return val, true
 	}
 
-	return fc.parent.LookupVar(name)
+	return e.parent.LookupVar(name)
 }
 
-func (fc *ForkCtx) LookupFunc(name string) (calculon.Function, bool) {
-	fn, found := fc.Context.LookupFunc(name)
+func (e *ScopedEnv) LookupFunc(name string) (calculon.Function, bool) {
+	fn, found := e.Env.LookupFunc(name)
 	if found {
 		return fn, true
 	}
 
-	return fc.parent.LookupFunc(name)
+	return e.parent.LookupFunc(name)
 }
 
-func NewForkCtx(parent calculon.EvalContext) *ForkCtx {
-	return &ForkCtx{
-		parent:  parent,
-		Context: calculon.NewContext(),
+func NewScopedEnv(parent *calculon.Env) *ScopedEnv {
+	return &ScopedEnv{
+		parent: parent,
+		Env:    calculon.NewEnv(),
 	}
 }
 
 func main() {
 	r := bufio.NewReader(os.Stdin)
-	ctx := calculon.MathContext()
+	repl := &Repl{
+		global: calculon.MathEnv(),
+		vm:     vm.New(vm.Config{}),
+	}
+
 	for {
 		fmt.Print(">> ")
 		input, err := r.ReadString('\n')
@@ -50,72 +57,74 @@ func main() {
 			panic(err)
 		}
 
-		if err := exec(strings.TrimSpace(input), ctx); err != nil {
+		if err := repl.Exec(strings.TrimSpace(input)); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			continue
 		}
 	}
 }
 
-func exec(input string, ctx *calculon.Context) error {
+type Repl struct {
+	global *calculon.Env
+	vm     *vm.VM
+}
+
+func (repl *Repl) Exec(input string) error {
 	if strings.Contains(input, "=") {
-		if err := define(input, ctx); err != nil {
+		if err := repl.define(input); err != nil {
 			return fmt.Errorf("assign: %w", err)
 		}
 
 		return nil
 	}
 
-	switch strings.ToLower(input) {
-	case ":q":
+	if strings.ToLower(input) == ":q" {
 		os.Exit(0)
-	case ":clear":
-		fmt.Print("\033[H\033[2J")
-		return nil
 	}
 
-	expr, err := calculon.Parse(input)
+	program, err := calculon.Compile(input)
 	if err != nil {
-		return fmt.Errorf("parse expression: %w", err)
+		return fmt.Errorf("compile: %w", err)
 	}
 
-	result, err := expr.Eval(ctx)
+	result, err := repl.vm.Run(program, repl.global)
 	if err != nil {
-		return fmt.Errorf("eval: %w", err)
+		return fmt.Errorf("run: %w", err)
 	}
 
 	fmt.Println(result)
 	return nil
 }
 
-func define(input string, ctx *calculon.Context) error {
+// hacky hack
+func (repl *Repl) define(input string) error {
 	vars := strings.Split(input, "=")
 	if len(vars) != 2 {
 		return fmt.Errorf("multiple assignment")
 	}
 
-	left, err := calculon.Parse(strings.TrimSpace(vars[0]))
+	left, err := parser.Parse(strings.TrimSpace(vars[0]))
 	if err != nil {
 		return err
 	}
 
-	right, err := calculon.Parse(strings.TrimSpace(vars[1]))
+	right, err := parser.Parse(strings.TrimSpace(vars[1]))
 	if err != nil {
 		return err
 	}
 
 	switch left := left.(type) {
-	case calculon.Variable:
-		num, ok := right.(calculon.Number)
+	case ast.Variable:
+		num, ok := right.(ast.Number)
 		if !ok {
 			return fmt.Errorf("invalid right operand type: %T", right)
 		}
 
-		ctx.SetVar(left.Name, num.Value)
-	case calculon.FunctionCall:
+		repl.global.SetVar(left.Name, num.Value)
+	case ast.FunctionCall:
 		var pnames []string
 		for _, arg := range left.Args {
-			vararg, ok := arg.(calculon.Variable)
+			vararg, ok := arg.(ast.Variable)
 			if !ok {
 				return fmt.Errorf("unsupported function argument: %T", arg)
 			}
@@ -123,17 +132,22 @@ func define(input string, ctx *calculon.Context) error {
 			pnames = append(pnames, vararg.Name)
 		}
 
-		fnCtx := NewForkCtx(ctx)
-		ctx.SetFunc(left.Name, func(args []float64) (float64, error) {
+		fnProgram, err := compiler.Compile(right)
+		if err != nil {
+			return fmt.Errorf("compile: %w", err)
+		}
+
+		fnEnv := NewScopedEnv(repl.global)
+		fnEnv.SetFunc(left.Name, func(args []float64) (float64, error) {
 			if len(args) != len(pnames) {
 				return 0, fmt.Errorf("%s(): bad params count (want %d, got %d)", left.Name, len(pnames), len(args))
 			}
 
 			for i, paramName := range pnames {
-				fnCtx.SetVar(paramName, args[i])
+				fnEnv.SetVar(paramName, args[i])
 			}
 
-			return right.Eval(fnCtx)
+			return repl.vm.Run(fnProgram, fnEnv)
 		})
 	default:
 		return fmt.Errorf("invalid left operand type: %T", left)

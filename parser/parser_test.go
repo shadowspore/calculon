@@ -1,17 +1,19 @@
-package calculon
+package parser
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/zweihander/calculon/ast"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParser(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected Expression
+		expected Node
 		err      error
 	}{
 		{
@@ -36,7 +38,7 @@ func TestParser(t *testing.T) {
 							Op:   "*",
 							Left: Number{Value: 2},
 							Right: Parentheses{
-								Expr: BinaryOp{
+								Inner: BinaryOp{
 									Op:    "+",
 									Left:  Number{Value: 3},
 									Right: Number{Value: 4},
@@ -51,11 +53,11 @@ func TestParser(t *testing.T) {
 							Op:   "*",
 							Left: Number{Value: 512},
 							Right: Parentheses{
-								Expr: BinaryOp{
+								Inner: BinaryOp{
 									Op: "+",
 									Left: UnaryOp{
-										Op:   "-",
-										Expr: Number{Value: 9},
+										Op:      "-",
+										Operand: Number{Value: 9},
 									},
 									Right: Number{Value: 100},
 								},
@@ -78,7 +80,7 @@ func TestParser(t *testing.T) {
 				Op:   "+",
 				Left: Variable{Name: "x"},
 				Right: Parentheses{
-					Expr: BinaryOp{
+					Inner: BinaryOp{
 						Op:    "/",
 						Left:  Variable{Name: "y"},
 						Right: Number{Value: 3},
@@ -98,10 +100,10 @@ func TestParser(t *testing.T) {
 						Op: "^",
 						Left: FunctionCall{
 							Name: "bar",
-							Args: []Expression{
+							Args: []Node{
 								BinaryOp{
 									Op:    "+",
-									Left:  UnaryOp{Op: "-", Expr: Number{Value: 2}},
+									Left:  UnaryOp{Op: "-", Operand: Number{Value: 2}},
 									Right: Variable{Name: "y"},
 								},
 							},
@@ -111,11 +113,11 @@ func TestParser(t *testing.T) {
 				},
 				Right: FunctionCall{
 					Name: "baz",
-					Args: []Expression{
+					Args: []Node{
 						Variable{Name: "z"},
 						FunctionCall{
 							Name: "bax",
-							Args: []Expression{Variable{Name: "x"}},
+							Args: []Node{Variable{Name: "x"}},
 						},
 					},
 				},
@@ -157,9 +159,9 @@ func TestParser(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			expr, err := Parse(test.input)
-			assert.Equal(t, test.err, err)
+			require.Equal(t, test.err, err)
 
-			assert.Equal(t, test.expected, expr)
+			require.Equal(t, test.expected, expr)
 		})
 	}
 }

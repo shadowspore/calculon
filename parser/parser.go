@@ -1,23 +1,24 @@
-package calculon
+package parser
 
 import (
 	"fmt"
 	"strconv"
 
-	"github.com/zweihander/calculon/lexer"
+	"github.com/zweihander/calculon/ast"
+	"github.com/zweihander/calculon/parser/lexer"
 )
 
-type recursiveDescent struct {
+type Parser struct {
 	lexer *lexer.Lexer
 }
 
-func newRecursiveDescent(input string) *recursiveDescent {
-	return &recursiveDescent{
+func New(input string) *Parser {
+	return &Parser{
 		lexer: lexer.New(input),
 	}
 }
 
-func (p *recursiveDescent) parse() (Expression, error) {
+func (p *Parser) Parse() (ast.Node, error) {
 	expr, err := p.parseExpr()
 	if err != nil {
 		return nil, err
@@ -30,7 +31,7 @@ func (p *recursiveDescent) parse() (Expression, error) {
 	return expr, nil
 }
 
-func (p *recursiveDescent) parseExpr() (Expression, error) {
+func (p *Parser) parseExpr() (ast.Node, error) {
 	expr, err := p.parseTerm()
 	if err != nil {
 		return nil, err
@@ -45,7 +46,7 @@ func (p *recursiveDescent) parseExpr() (Expression, error) {
 				return nil, err
 			}
 
-			expr = BinaryOp{
+			expr = ast.BinaryOp{
 				Op:    next.String(),
 				Left:  expr,
 				Right: right,
@@ -58,7 +59,7 @@ func (p *recursiveDescent) parseExpr() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseTerm() (Expression, error) {
+func (p *Parser) parseTerm() (ast.Node, error) {
 	left, err := p.parseFactor()
 	if err != nil {
 		return nil, err
@@ -73,7 +74,7 @@ func (p *recursiveDescent) parseTerm() (Expression, error) {
 				return nil, err
 			}
 
-			left = BinaryOp{
+			left = ast.BinaryOp{
 				Op:    next.String(),
 				Left:  left,
 				Right: right,
@@ -86,7 +87,7 @@ func (p *recursiveDescent) parseTerm() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseFactor() (Expression, error) {
+func (p *Parser) parseFactor() (ast.Node, error) {
 	if p.lexer.Eat(lexer.Plus) {
 		return p.parseFactor()
 	}
@@ -97,7 +98,7 @@ func (p *recursiveDescent) parseFactor() (Expression, error) {
 			return nil, err
 		}
 
-		return UnaryOp{Op: "-", Expr: expr}, nil
+		return ast.UnaryOp{Op: "-", Operand: expr}, nil
 	}
 
 	expr, err := p.parsePrimary()
@@ -111,7 +112,7 @@ func (p *recursiveDescent) parseFactor() (Expression, error) {
 			return nil, err
 		}
 
-		return BinaryOp{
+		return ast.BinaryOp{
 			Op:    "^",
 			Left:  expr,
 			Right: power,
@@ -121,7 +122,7 @@ func (p *recursiveDescent) parseFactor() (Expression, error) {
 	return expr, nil
 }
 
-func (p *recursiveDescent) parsePrimary() (Expression, error) {
+func (p *Parser) parsePrimary() (ast.Node, error) {
 	tok := p.lexer.Next()
 	switch tok.Kind {
 	case lexer.OpenParen:
@@ -134,14 +135,14 @@ func (p *recursiveDescent) parsePrimary() (Expression, error) {
 			return nil, fmt.Errorf("expected: ')'")
 		}
 
-		return Parentheses{Expr: expr}, nil
+		return ast.Parentheses{Inner: expr}, nil
 	case lexer.Number:
 		num, err := strconv.ParseFloat(tok.Value, 64)
 		if err != nil {
 			return nil, err
 		}
 
-		return Number{Value: num}, nil
+		return ast.Number{Value: num}, nil
 	case lexer.Ident:
 		// it's a function?
 		if p.lexer.Eat(lexer.OpenParen) {
@@ -150,20 +151,20 @@ func (p *recursiveDescent) parsePrimary() (Expression, error) {
 				return nil, err
 			}
 
-			return FunctionCall{
+			return ast.FunctionCall{
 				Name: tok.Value,
 				Args: args,
 			}, nil
 		}
 
-		return Variable{Name: tok.Value}, nil
+		return ast.Variable{Name: tok.Value}, nil
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", tok)
 	}
 }
 
-func (p *recursiveDescent) parseArgs() ([]Expression, error) {
-	var args []Expression
+func (p *Parser) parseArgs() ([]ast.Node, error) {
+	var args []ast.Node
 	for !p.lexer.Eat(lexer.CloseParen) {
 		if len(args) > 0 {
 			if !p.lexer.Eat(lexer.Comma) {
@@ -182,6 +183,6 @@ func (p *recursiveDescent) parseArgs() ([]Expression, error) {
 	return args, nil
 }
 
-func Parse(input string) (Expression, error) {
-	return newRecursiveDescent(input).parse()
+func Parse(input string) (ast.Node, error) {
+	return New(input).Parse()
 }
