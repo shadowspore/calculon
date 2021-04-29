@@ -7,17 +7,17 @@ import (
 	"github.com/xjem/calculon/lexer"
 )
 
-type recursiveDescent struct {
+type parser struct {
 	lexer *lexer.Lexer
 }
 
-func newRecursiveDescent(input string) *recursiveDescent {
-	return &recursiveDescent{
+func newParser(input string) *parser {
+	return &parser{
 		lexer: lexer.New(input),
 	}
 }
 
-func (p *recursiveDescent) parse() (Expression, error) {
+func (p *parser) parse() (Expression, error) {
 	expr, err := p.parseExpr()
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (p *recursiveDescent) parse() (Expression, error) {
 	return expr, nil
 }
 
-func (p *recursiveDescent) parseExpr() (Expression, error) {
+func (p *parser) parseExpr() (Expression, error) {
 	expr, err := p.parseTerm()
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (p *recursiveDescent) parseExpr() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseTerm() (Expression, error) {
+func (p *parser) parseTerm() (Expression, error) {
 	left, err := p.parseFactor()
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (p *recursiveDescent) parseTerm() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseFactor() (Expression, error) {
+func (p *parser) parseFactor() (Expression, error) {
 	if p.lexer.Eat(lexer.Plus) {
 		return p.parseFactor()
 	}
@@ -121,7 +121,7 @@ func (p *recursiveDescent) parseFactor() (Expression, error) {
 	return expr, nil
 }
 
-func (p *recursiveDescent) parsePrimary() (Expression, error) {
+func (p *parser) parsePrimary() (Expression, error) {
 	tok := p.lexer.Next()
 	switch tok.Kind {
 	case lexer.OpenParen:
@@ -162,7 +162,7 @@ func (p *recursiveDescent) parsePrimary() (Expression, error) {
 	}
 }
 
-func (p *recursiveDescent) parseArgs() ([]Expression, error) {
+func (p *parser) parseArgs() ([]Expression, error) {
 	var args []Expression
 	for !p.lexer.Eat(lexer.CloseParen) {
 		if len(args) > 0 {
@@ -183,5 +183,5 @@ func (p *recursiveDescent) parseArgs() ([]Expression, error) {
 }
 
 func Parse(input string) (Expression, error) {
-	return newRecursiveDescent(input).parse()
+	return newParser(input).parse()
 }
