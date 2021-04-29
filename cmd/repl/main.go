@@ -10,12 +10,12 @@ import (
 )
 
 // for functions, to keep the global scope access
-type ForkCtx struct {
+type ScopedCtx struct {
 	parent calculon.EvalContext
 	*calculon.Context
 }
 
-func (fc *ForkCtx) LookupVar(name string) (float64, bool) {
+func (fc *ScopedCtx) LookupVar(name string) (float64, bool) {
 	val, found := fc.Context.LookupVar(name)
 	if found {
 		return val, true
@@ -24,7 +24,7 @@ func (fc *ForkCtx) LookupVar(name string) (float64, bool) {
 	return fc.parent.LookupVar(name)
 }
 
-func (fc *ForkCtx) LookupFunc(name string) (calculon.Function, bool) {
+func (fc *ScopedCtx) LookupFunc(name string) (calculon.Function, bool) {
 	fn, found := fc.Context.LookupFunc(name)
 	if found {
 		return fn, true
@@ -33,8 +33,8 @@ func (fc *ForkCtx) LookupFunc(name string) (calculon.Function, bool) {
 	return fc.parent.LookupFunc(name)
 }
 
-func NewForkCtx(parent calculon.EvalContext) *ForkCtx {
-	return &ForkCtx{
+func NewScope(parent calculon.EvalContext) *ScopedCtx {
+	return &ScopedCtx{
 		parent:  parent,
 		Context: calculon.NewContext(),
 	}
@@ -123,17 +123,17 @@ func define(input string, ctx *calculon.Context) error {
 			pnames = append(pnames, vararg.Name)
 		}
 
-		fnCtx := NewForkCtx(ctx)
+		scope := NewScope(ctx)
 		ctx.SetFunc(left.Name, func(args []float64) (float64, error) {
 			if len(args) != len(pnames) {
 				return 0, fmt.Errorf("%s(): bad params count (want %d, got %d)", left.Name, len(pnames), len(args))
 			}
 
 			for i, paramName := range pnames {
-				fnCtx.SetVar(paramName, args[i])
+				scope.SetVar(paramName, args[i])
 			}
 
-			return right.Eval(fnCtx)
+			return right.Eval(scope)
 		})
 	default:
 		return fmt.Errorf("invalid left operand type: %T", left)
