@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/zweihander/calculon/lexer"
+	"github.com/xjem/calculon/lexer"
 )
 
 type recursiveDescent struct {

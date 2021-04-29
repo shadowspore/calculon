@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zweihander/calculon"
+	"github.com/xjem/calculon"
 )
 
 // for functions, to keep the global scope access

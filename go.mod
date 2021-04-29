@@ -1,4 +1,4 @@
-module github.com/zweihander/calculon
+module github.com/xjem/calculon
 
 go 1.15
 

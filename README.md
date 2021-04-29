@@ -10,7 +10,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/zweihander/calculon"
+	"github.com/xjem/calculon"
 )
 
 func main() {
@@ -58,7 +58,7 @@ Interactive calculator in ```cmd/repl```
 ## About implementation
 
 ### Parsing
-Parser uses [recursive descent algorithm](https://en.wikipedia.org/wiki/Recursive_descent_parser) to parse [expression grammar](GRAMMAR.md).\
+Parser uses [recursive descent algorithm](https://en.wikipedia.org/wiki/Recursive_descent_parser).\
 I didn't use shunting-yard algorithm because it uses [some hacky solutions](https://stackoverflow.com/a/17132657) to handle unary minus operator, which may conflict with user-defined variables or functions.
 
 ### Interpreter
