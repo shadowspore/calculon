@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/xjem/calculon/lexer"
+	"github.com/xjem/calculon/internal/lexer"
 )
 
 type parser struct {
