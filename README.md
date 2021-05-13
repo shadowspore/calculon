@@ -65,7 +65,7 @@ I didn't use shunting-yard algorithm because it uses [some hacky solutions](http
 It's a tree-walking interpreter.
 Each AST node have ```Eval()``` function.
 
-## Articles
+## Links
 1. [Java expression evaluator](https://stackoverflow.com/a/26227947)
 2. [Writing a Simple Math Expression Engine in C#](https://medium.com/@toptensoftware/writing-a-simple-math-expression-engine-in-c-d414de18d4ce)
 3. [Pretty Printing AST with Minimal Parentheses](https://stackoverflow.com/questions/13708837/pretty-printing-ast-with-minimal-parentheses)
